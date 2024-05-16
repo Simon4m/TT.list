@@ -6,7 +6,7 @@
 ;支那牆國IP：支援
 ;ruleset=📲 ip,https://raw.githubusercontent.com/Simon4m/clash/main/ceshiip.list
 ruleset=📲 Telegram,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Telegram/Telegram.list
-ruleset=📲 Threema,https://raw.githubusercontent.com/Simon4m/clash/main/Threema.list
+;ruleset=📲 Threema,https://raw.githubusercontent.com/Simon4m/clash/main/Threema.list
 ruleset=📲 Whatsapp,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Whatsapp.list
 ruleset=📲 Twitter,https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Clash/Twitter/Twitter.list
 ruleset=📲 TeamViewer,https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/TeamViewer.list
@@ -98,7 +98,7 @@ ruleset=🐟 Match,[]FINAL
 ;设置分组标志位
 ;custom_proxy_group=📲 ip`select`[]REJECT`.*`[]DIRECT
 custom_proxy_group=📲 Telegram`select`[]REJECT`.*
-custom_proxy_group=📲 Threema`select`[]REJECT`.*`[]DIRECT
+;custom_proxy_group=📲 Threema`select`[]REJECT`.*`[]DIRECT
 custom_proxy_group=📲 Whatsapp`select`[]REJECT`.*
 custom_proxy_group=📲 Twitter`select`[]REJECT`.*
 custom_proxy_group=📲 TeamViewer`select`[]REJECT`.*`[]DIRECT
