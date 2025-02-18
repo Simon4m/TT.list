@@ -366,14 +366,9 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
-    // 删除 WebVTT 注释 (NOTE 行) 
     body = body.replace(/^NOTE .*\n/gm, "");
-
-// 删除 ASS/SSA 注释 (Comment 行) 
     body = body.replace(/^Comment:.*\n/gm, "");
-
-// 删除 HTML 标记（<i> <b> 等） 
-    body = body.replace(/</?[^>]+(>|$)/g, ""); 还是用这个吧
+    body = body.replace(/</?[^>]+(>|$)/g, "");
 
     body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
     body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
