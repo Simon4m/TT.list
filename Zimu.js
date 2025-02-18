@@ -366,36 +366,62 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
+    if (typeof body === "undefined" || !body) {
+        console.error("Error: body is undefined or empty");
+        $done({});
+        return;
+    }
+
+    
     body = body.replace(/\r/g, "");
 
-  
+
     let note_subtitles = body.match(/^NOTE .*\n/gm) || [];
     let comment_subtitles = body.match(/^Comment:.*\n/gm) || [];
 
-    
-    let clean_body = body.replace(/^NOTE .*\n/gm, "").replace(/^Comment:.*\n/gm, "");
+
+    let clean_body = body
+        .replace(/^NOTE .*\n/gm, "")
+        .replace(/^Comment:.*\n/gm, "")
+        .replace(/<\/?(?!i|b|u)[^>]+>/g, ""); // 只移除非语义标签，保留 `<i>`, `<b>`, `<u>`
+
+ 
+    clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d)\n(?!\d+:\d\d:\d\d)/g, "$1 ");
 
     
-    clean_body = clean_body.replace(/<\/?[^>]+(>|$)/g, "");
-
-    
-    clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
-
-    let dialogue = clean_body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g);
-    if (!dialogue) $done({});
+    let dialogue = clean_body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d\n.+/g) || [];
 
 
-    let translated_dialogue = await translate_subtitles(dialogue, type);
-    let translated_notes = note_subtitles.length > 0 ? await translate_subtitles(note_subtitles, type) : [];
-    let translated_comments = comment_subtitles.length > 0 ? await translate_subtitles(comment_subtitles, type) : [];
+    if (dialogue.length === 0) {
+        console.warn("Warning: No valid dialogues found.");
+        $done({ body });
+        return;
+    }
 
-    
-    if (!translated_dialogue) translated_dialogue = [];
-    if (!translated_notes) translated_notes = [];
-    if (!translated_comments) translated_comments = [];
+    try {
+        
+        let translated_dialogue = await translate_subtitles(dialogue, type);
+        let translated_notes = note_subtitles.length > 0 ? await translate_subtitles(note_subtitles, type) : [];
+        let translated_comments = comment_subtitles.length > 0 ? await translate_subtitles(comment_subtitles, type) : [];
 
 
-    let final_subtitles = merge_subtitles(clean_body, translated_dialogue, translated_notes, translated_comments);
+        translated_dialogue = Array.isArray(translated_dialogue) && translated_dialogue.length > 0 ? translated_dialogue : dialogue;
+        translated_notes = Array.isArray(translated_notes) ? translated_notes : note_subtitles;
+        translated_comments = Array.isArray(translated_comments) ? translated_comments : comment_subtitles;
+
+        
+        let final_subtitles = await merge_subtitles(clean_body, translated_dialogue, translated_notes, translated_comments);
+
+        
+        if (!final_subtitles || final_subtitles.trim() === "" || !/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d/.test(final_subtitles)) {
+            console.error("Error: Final subtitles are invalid. Using backup subtitles.");
+            final_subtitles = body;
+        }
+
+         
+        $done({ body });
+    }
+}
 
 
     
