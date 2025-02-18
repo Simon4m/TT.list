@@ -368,43 +368,40 @@ function external_subtitles() {
 async function machine_subtitles(type) {
     if (typeof body === "undefined" || !body) {
         console.error("Error: body is undefined or empty");
-        $done({});
-        return;
+        return body;
     }
 
     
     body = body.replace(/\r/g, "");
 
-
+    
     let note_subtitles = body.match(/^NOTE .*\n/gm) || [];
     let comment_subtitles = body.match(/^Comment:.*\n/gm) || [];
 
-
+   
     let clean_body = body
         .replace(/^NOTE .*\n/gm, "")
         .replace(/^Comment:.*\n/gm, "")
         .replace(/<\/?(?!i|b|u)[^>]+>/g, "");
 
- 
+    
     clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d)\n(?!\d+:\d\d:\d\d)/g, "$1 ");
 
-    
-    let dialogue = clean_body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d\n.+/g) || [];
 
+    let dialogue = clean_body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d\n.+/g) || [];
 
     if (dialogue.length === 0) {
         console.warn("Warning: No valid dialogues found.");
-        $done({ body });
-        return;
+        return body;
     }
 
     try {
         
-        let translated_dialogue = await translate_subtitles(dialogue, type);
+        let translated_dialogue = await translate_subtitles(dialogue, type) || dialogue;
         let translated_notes = note_subtitles.length > 0 ? await translate_subtitles(note_subtitles, type) : [];
         let translated_comments = comment_subtitles.length > 0 ? await translate_subtitles(comment_subtitles, type) : [];
 
-
+        
         translated_dialogue = Array.isArray(translated_dialogue) && translated_dialogue.length > 0 ? translated_dialogue : dialogue;
         translated_notes = Array.isArray(translated_notes) ? translated_notes : note_subtitles;
         translated_comments = Array.isArray(translated_comments) ? translated_comments : comment_subtitles;
@@ -414,13 +411,16 @@ async function machine_subtitles(type) {
 
         
         if (!final_subtitles || final_subtitles.trim() === "" || !/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d/.test(final_subtitles)) {
-            console.error("Error: Final subtitles are invalid. Using backup subtitles.");
-            final_subtitles = body;
+            console.error("Error: Final subtitles invalid. Using original subtitles.");
+            return body;
         }
 
-         
-        $done({ body });
+        return final_subtitles;
+    } catch (error) {
+        console.error("Critical Error:", error);
+        return body;
     }
+}
 
 
     
