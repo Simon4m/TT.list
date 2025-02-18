@@ -383,7 +383,7 @@ async function machine_subtitles(type) {
     let clean_body = body
         .replace(/^NOTE .*\n/gm, "")
         .replace(/^Comment:.*\n/gm, "")
-        .replace(/<\/?(?!i|b|u)[^>]+>/g, ""); // 只移除非语义标签，保留 `<i>`, `<b>`, `<u>`
+        .replace(/<\/?(?!i|b|u)[^>]+>/g, "");
 
  
     clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d\d\d)\n(?!\d+:\d\d:\d\d)/g, "$1 ");
@@ -421,7 +421,6 @@ async function machine_subtitles(type) {
          
         $done({ body });
     }
-}
 
 
     
