@@ -366,47 +366,58 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
-    // 1️⃣ **备份原始字幕内容，防止误替换**
+    console.log("🔹 开始处理字幕翻译");
+
+    // 1️⃣ **备份原始字幕**
     let original_body = body;
+    console.log("🔹 原始字幕内容:", original_body);
 
     // 2️⃣ **去除回车符，标准化换行**
     body = body.replace(/\r/g, "");
 
     // 3️⃣ **分离字幕 & 注释**
-    let subtitle_comments = {}; // 存储 { 时间戳: 注释内容 }
+    let subtitle_comments = {};
     let clean_body = body.replace(/^NOTE (.*)\n/gm, (match, comment, offset, fullString) => {
         let timeMatch = fullString.substring(0, offset).match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
         if (timeMatch) subtitle_comments[timeMatch[0]] = comment.trim();
-        return ""; // 删除 NOTE 注释
+        return "";
     }).replace(/^Comment: (.*)\n/gm, (match, comment, offset, fullString) => {
         let timeMatch = fullString.substring(0, offset).match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
         if (timeMatch) subtitle_comments[timeMatch[0]] = comment.trim();
-        return ""; // 删除 ASS/SSA 注释
+        return "";
     });
 
     // 4️⃣ **清理格式**
-    clean_body = clean_body.replace(/<\/?[^>]+(>|$)/g, ""); // 删除 HTML 标签
+    clean_body = clean_body.replace(/<\/?[^>]+(>|$)/g, "");
 
     // 5️⃣ **分别翻译**
-    let translated_subtitles = await translate_text(clean_body, setting.type) || clean_body; // 避免翻译失败返回空
+    let translated_subtitles = await translate_text(clean_body, setting.type);
+    console.log("🔹 翻译后的字幕:", translated_subtitles);
+
     let translated_comments = {};
     for (let timestamp in subtitle_comments) {
-        translated_comments[timestamp] = await translate_text(subtitle_comments[timestamp], setting.type) || subtitle_comments[timestamp]; // 避免翻译失败
+        translated_comments[timestamp] = await translate_text(subtitle_comments[timestamp], setting.type);
+        console.log(`🔹 翻译后的注释（${timestamp}）:`, translated_comments[timestamp]);
     }
 
     // 6️⃣ **合并翻译的注释回字幕**
     let final_body = translated_subtitles.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)/g, (match, subtitle, offset, fullString) => {
         let timeMatch = subtitle.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
         if (timeMatch && translated_comments[timeMatch[0]]) {
-            return subtitle + `\n【${translated_comments[timeMatch[0]]}】`; // 添加翻译后的注释（避免 `()` 格式导致播放器错误）
+            return subtitle + `\n[${translated_comments[timeMatch[0]]}]`;
         }
         return subtitle;
     });
 
-    // 7️⃣ **确保不会返回空内容**
-    if (!final_body.trim()) final_body = original_body; 
+    // 7️⃣ **检查 final_body 是否为空**
+    if (!final_body.trim()) {
+        console.log("⚠️ `final_body` 为空，恢复原字幕！");
+        final_body = original_body;
+    }
 
-    // 8️⃣ **处理完成，返回完整翻译字幕**
+    console.log("🔹 最终字幕内容:", final_body);
+
+    // 8️⃣ **返回完整翻译字幕**
     body = final_body;
     $done({ body });
 }
