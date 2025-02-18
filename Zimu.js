@@ -366,62 +366,82 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
-    console.log("🔹 开始处理字幕翻译");
+    console.log("🔹 开始翻译: " + new Date().toISOString());
 
-    // 1️⃣ **备份原始字幕**
-    let original_body = body;
-    console.log("🔹 原始字幕内容:", original_body);
-
-    // 2️⃣ **去除回车符，标准化换行**
     body = body.replace(/\r/g, "");
+    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
+    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
 
-    // 3️⃣ **分离字幕 & 注释**
-    let subtitle_comments = {};
-    let clean_body = body.replace(/^NOTE (.*)\n/gm, (match, comment, offset, fullString) => {
-        let timeMatch = fullString.substring(0, offset).match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
-        if (timeMatch) subtitle_comments[timeMatch[0]] = comment.trim();
-        return "";
-    }).replace(/^Comment: (.*)\n/gm, (match, comment, offset, fullString) => {
-        let timeMatch = fullString.substring(0, offset).match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
-        if (timeMatch) subtitle_comments[timeMatch[0]] = comment.trim();
-        return "";
-    });
-
-    // 4️⃣ **清理格式**
-    clean_body = clean_body.replace(/<\/?[^>]+(>|$)/g, "");
-
-    // 5️⃣ **分别翻译**
-    let translated_subtitles = await translate_text(clean_body, setting.type);
-    console.log("🔹 翻译后的字幕:", translated_subtitles);
-
-    let translated_comments = {};
-    for (let timestamp in subtitle_comments) {
-        translated_comments[timestamp] = await translate_text(subtitle_comments[timestamp], setting.type);
-        console.log(`🔹 翻译后的注释（${timestamp}）:`, translated_comments[timestamp]);
+    let dialogue = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g);
+    if (!dialogue) {
+        console.log("⚠️ 没有找到需要翻译的字幕");
+        $done({ body });
+        return;
     }
 
-    // 6️⃣ **合并翻译的注释回字幕**
-    let final_body = translated_subtitles.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)/g, (match, subtitle, offset, fullString) => {
-        let timeMatch = subtitle.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
-        if (timeMatch && translated_comments[timeMatch[0]]) {
-            return subtitle + `\n[${translated_comments[timeMatch[0]]}]`;
+    let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g);
+
+    let s_sentences = [];
+    for (let i in dialogue) {
+        s_sentences.push(dialogue[i].replace(/<\/*(c\.[^>]+|i|c)>/g, "").replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, ""));
+    }
+
+    s_sentences = groupAgain(s_sentences, 20); // **降低每次请求的字幕量，提高效率**
+    let trans_result = [];
+
+    try {
+        let translationPromises = s_sentences.map(sentence =>
+            translate_text(sentence, type)
+        );
+        trans_result = await Promise.all(translationPromises);
+    } catch (error) {
+        console.log("⚠️ 翻译时发生错误: " + error.message);
+    }
+
+    if (trans_result.length > 0) {
+        let g_t_sentences = trans_result.join("\n").replace(/\s\n/g, "\n");
+
+        for (let j in dialogue) {
+            let patt = new RegExp(`(${timeline[j]})`);
+            let patt2 = new RegExp(`~${j}~\\s*(.+)`);
+
+            if (g_t_sentences.match(patt2)) {
+                body = body.replace(patt, `$1\n${g_t_sentences.match(patt2)[1]}`);
+            }
         }
-        return subtitle;
-    });
 
-    // 7️⃣ **检查 final_body 是否为空**
-    if (!final_body.trim()) {
-        console.log("⚠️ `final_body` 为空，恢复原字幕！");
-        final_body = original_body;
+        console.log("✅ 翻译完成: " + new Date().toISOString());
+    } else {
+        console.log("⚠️ 翻译失败，返回原字幕");
     }
 
-    console.log("🔹 最终字幕内容:", final_body);
-
-    // 8️⃣ **返回完整翻译字幕**
-    body = final_body;
     $done({ body });
 }
 
+async function translate_text(text, type) {
+    let timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("⚠️ 翻译超时")), 5000) // **5秒超时保护**
+    );
+
+    try {
+        let response = await Promise.race([
+            real_translate_request(text, type), // **真正的翻译请求**
+            timeoutPromise
+        ]);
+        return response;
+    } catch (error) {
+        console.log(error.message);
+        return text; // **超时就直接返回原文**
+    }
+}
+
+function groupAgain(arr, size) {
+    let result = [];
+    for (let i = 0; i < arr.length; i += size) {
+        result.push(arr.slice(i, i + size));
+    }
+    return result;
+}
     let s_sentences = []
     for (var i in dialogue) {
         s_sentences.push(`${type == "Google" ? "~" + i + "~" : "&text="}${dialogue[i].replace(/<\/*(c\.[^>]+|i|c)>/g, "").replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, "")}`)
