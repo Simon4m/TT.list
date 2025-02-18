@@ -366,10 +366,13 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
+
     body = body.replace(/\r/g, "")
     body = body.replace(/^NOTE .*\n/gm, "");
+
     body = body.replace(/^Comment:.*\n/gm, "");
-    body = body.replace(/</?[^>]+(>|$)/g, "");
+
+    body = body.replace(/<\/?[^>]+(>|$)/g, "");
 
     body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
     body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
@@ -418,7 +421,7 @@ async function machine_subtitles(type) {
     if (type == "DeepL") {
         for (var l in s_sentences) {
             let options = {
-                url: "https://api.deepl.com/v2/translate",
+                url: "https://api-free.deepl.com/v2/translate",
                 body: `auth_key=${setting.dkey}${setting.sl == "auto" ? "" : `&source_lang=${setting.sl}`}&target_lang=${setting.tl}${s_sentences[l].join("")}`
             }
 
@@ -491,4 +494,58 @@ async function official_subtitles(subtitles_urls_data) {
 
     let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g)
 
-    for (var i in timel
+    for (var i in timeline) {
+        let patt1 = new RegExp(`(${timeline[i]})`)
+        if (setting.line == "s") patt1 = new RegExp(`(${timeline[i]}(\\n.+)+)`)
+
+        let time = timeline[i].match(/^\d+:\d\d:\d\d/)[0]
+
+        let patt2 = new RegExp(`${time}.\\d\\d\\d --> \\d+:\\d\\d:\\d\\d.\\d.+(\\n.+)+`)
+
+        let dialogue = result.join("\n\n").match(patt2)
+
+        if (dialogue) body = body.replace(
+            patt1,
+            `$1\n${dialogue[0]
+                .replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, "")
+                .replace(/\n/, " ")}`
+        )
+    }
+
+    settings[service].s_subtitles_url = url
+    settings[service].subtitles = body
+    settings[service].subtitles_type = setting.type
+    settings[service].subtitles_sl = setting.sl
+    settings[service].subtitles_tl = setting.tl
+    settings[service].subtitles_line = setting.line
+    $persistentStore.write(JSON.stringify(settings))
+
+    $done({ body })
+}
+
+function send_request(options, method) {
+    return new Promise((resolve, reject) => {
+
+        if (method == "get") {
+            $httpClient.get(options, function (error, response, data) {
+                if (error) return reject('Error')
+                resolve(data)
+            })
+        }
+
+        if (method == "post") {
+            $httpClient.post(options, function (error, response, data) {
+                if (error) return reject('Error')
+                resolve(JSON.parse(data))
+            })
+        }
+    })
+}
+
+function groupAgain(data, num) {
+    var result = []
+    for (var i = 0; i < data.length; i += num) {
+        result.push(data.slice(i, i + num))
+    }
+    return result
+}
