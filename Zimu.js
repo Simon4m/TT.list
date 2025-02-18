@@ -395,8 +395,7 @@ async function machine_subtitles(type) {
     
     let final_subtitles = merge_subtitles(clean_body, translated_dialogue, translated_notes, translated_comments);
 
-    $done({ body: final_subtitles });
-}
+    
 
     if (type == "Google") {
         for (var p in s_sentences) {
