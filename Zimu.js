@@ -366,6 +366,7 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
+    body = body.replace(/\r/g, "")
     body = body.replace(/^NOTE .*\n/gm, "");
     body = body.replace(/^Comment:.*\n/gm, "");
     body = body.replace(/</?[^>]+(>|$)/g, "");
