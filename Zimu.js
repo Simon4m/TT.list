@@ -366,31 +366,37 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
-
     body = body.replace(/\r/g, "")
-    body = body.replace(/^NOTE .*\n/gm, "");
 
-    body = body.replace(/^Comment:.*\n/gm, "");
+    
+    let note_subtitles = body.match(/^NOTE .*\n/gm) || [];
+    let comment_subtitles = body.match(/^Comment:.*\n/gm) || [];
+    
+    
+    let clean_body = body.replace(/^NOTE .*\n/gm, "").replace(/^Comment:.*\n/gm, "");
 
-    body = body.replace(/<\/?[^>]+(>|$)/g, "");
+    
+    clean_body = clean_body.replace(/<\/?[^>]+(>|$)/g, "");
 
-    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
-    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
+    
+    clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
+    clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
 
-    let dialogue = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g)
+    let dialogue = clean_body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g);
+    if (!dialogue) $done({});
 
-    if (!dialogue) $done({})
+    
+    let translated_dialogue = await translate_subtitles(dialogue, type);
 
-    let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g)
+    
+    let translated_notes = await translate_subtitles(note_subtitles, type);
+    let translated_comments = await translate_subtitles(comment_subtitles, type);
 
-    let s_sentences = []
-    for (var i in dialogue) {
-        s_sentences.push(`${type == "Google" ? "~" + i + "~" : "&text="}${dialogue[i].replace(/<\/*(c\.[^>]+|i|c)>/g, "").replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, "")}`)
-    }
-    s_sentences = groupAgain(s_sentences, type == "Google" ? 80 : 50)
+    
+    let final_subtitles = merge_subtitles(clean_body, translated_dialogue, translated_notes, translated_comments);
 
-    let t_sentences = []
-    let trans_result = []
+    $done({ body: final_subtitles });
+}
 
     if (type == "Google") {
         for (var p in s_sentences) {
