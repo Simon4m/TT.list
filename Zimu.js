@@ -366,12 +366,12 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
-    body = body.replace(/\r/g, "")
+    body = body.replace(/\r/g, "");
 
-    
+  
     let note_subtitles = body.match(/^NOTE .*\n/gm) || [];
     let comment_subtitles = body.match(/^Comment:.*\n/gm) || [];
-    
+
     
     let clean_body = body.replace(/^NOTE .*\n/gm, "").replace(/^Comment:.*\n/gm, "");
 
@@ -380,20 +380,23 @@ async function machine_subtitles(type) {
 
     
     clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
-    clean_body = clean_body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
 
     let dialogue = clean_body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g);
     if (!dialogue) $done({});
 
-    
+
     let translated_dialogue = await translate_subtitles(dialogue, type);
+    let translated_notes = note_subtitles.length > 0 ? await translate_subtitles(note_subtitles, type) : [];
+    let translated_comments = comment_subtitles.length > 0 ? await translate_subtitles(comment_subtitles, type) : [];
 
     
-    let translated_notes = await translate_subtitles(note_subtitles, type);
-    let translated_comments = await translate_subtitles(comment_subtitles, type);
+    if (!translated_dialogue) translated_dialogue = [];
+    if (!translated_notes) translated_notes = [];
+    if (!translated_comments) translated_comments = [];
 
-    
+
     let final_subtitles = merge_subtitles(clean_body, translated_dialogue, translated_notes, translated_comments);
+
 
     
 
