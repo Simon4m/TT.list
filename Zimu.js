@@ -366,82 +366,24 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
-    console.log("🔹 开始翻译: " + new Date().toISOString());
+    // 删除 WebVTT 注释 (NOTE 行) 
+    body = body.replace(/^NOTE .*\n/gm, "");
 
-    body = body.replace(/\r/g, "");
-    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
-    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2");
+// 删除 ASS/SSA 注释 (Comment 行) 
+    body = body.replace(/^Comment:.*\n/gm, "");
 
-    let dialogue = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g);
-    if (!dialogue) {
-        console.log("⚠️ 没有找到需要翻译的字幕");
-        $done({ body });
-        return;
-    }
+// 删除 HTML 标记（<i> <b> 等） 
+    body = body.replace(/</?[^>]+(>|$)/g, ""); 还是用这个吧
 
-    let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g);
+    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
+    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
 
-    let s_sentences = [];
-    for (let i in dialogue) {
-        s_sentences.push(dialogue[i].replace(/<\/*(c\.[^>]+|i|c)>/g, "").replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, ""));
-    }
+    let dialogue = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g)
 
-    s_sentences = groupAgain(s_sentences, 20); // **降低每次请求的字幕量，提高效率**
-    let trans_result = [];
+    if (!dialogue) $done({})
 
-    try {
-        let translationPromises = s_sentences.map(sentence =>
-            translate_text(sentence, type)
-        );
-        trans_result = await Promise.all(translationPromises);
-    } catch (error) {
-        console.log("⚠️ 翻译时发生错误: " + error.message);
-    }
+    let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g)
 
-    if (trans_result.length > 0) {
-        let g_t_sentences = trans_result.join("\n").replace(/\s\n/g, "\n");
-
-        for (let j in dialogue) {
-            let patt = new RegExp(`(${timeline[j]})`);
-            let patt2 = new RegExp(`~${j}~\\s*(.+)`);
-
-            if (g_t_sentences.match(patt2)) {
-                body = body.replace(patt, `$1\n${g_t_sentences.match(patt2)[1]}`);
-            }
-        }
-
-        console.log("✅ 翻译完成: " + new Date().toISOString());
-    } else {
-        console.log("⚠️ 翻译失败，返回原字幕");
-    }
-
-    $done({ body });
-}
-
-async function translate_text(text, type) {
-    let timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("⚠️ 翻译超时")), 5000) // **5秒超时保护**
-    );
-
-    try {
-        let response = await Promise.race([
-            real_translate_request(text, type), // **真正的翻译请求**
-            timeoutPromise
-        ]);
-        return response;
-    } catch (error) {
-        console.log(error.message);
-        return text; // **超时就直接返回原文**
-    }
-}
-
-function groupAgain(arr, size) {
-    let result = [];
-    for (let i = 0; i < arr.length; i += size) {
-        result.push(arr.slice(i, i + size));
-    }
-    return result;
-}
     let s_sentences = []
     for (var i in dialogue) {
         s_sentences.push(`${type == "Google" ? "~" + i + "~" : "&text="}${dialogue[i].replace(/<\/*(c\.[^>]+|i|c)>/g, "").replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, "")}`)
