@@ -368,9 +368,20 @@ function external_subtitles() {
 async function machine_subtitles(type) {
 
     body = body.replace(/\r/g, "")
-    body = body.replace(/^NOTE .*\n/gm, "");
-    body = body.replace(/^Comment:.*\n/gm, "");
-    body = body.replace(/<\/?[^>]+(>|$)/g, "");
+    
+    let cc_comments = body.match(/^NOTE .*\n/gm) || [];
+    cc_comments = cc_comments.concat(body.match(/^Comment:.*\n/gm) || []);
+    let clean_body = body.replace(/^NOTE .*\n/gm, "").replace(/^Comment:.*\n/gm, "");
+    let translated_body = await translate_text(clean_body, setting.type);
+    let translated_comments = await translate_text(cc_comments.join("\n"), setting.type);
+
+    let final_body = translated_body;
+    if (translated_comments.trim() !== "") {
+    final_body += "\n\n" + translated_comments;
+}
+
+body = final_body;
+$done({ body });
     body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
     body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
 
