@@ -366,30 +366,44 @@ function external_subtitles() {
 }
 
 async function machine_subtitles(type) {
+    body = body.replace(/\r/g, ""); // 先去除回车符，标准化文本格式
 
-    body = body.replace(/\r/g, "")
-    
-    let cc_comments = body.match(/^NOTE .*\n/gm) || [];
-    cc_comments = cc_comments.concat(body.match(/^Comment:.*\n/gm) || []);
-    let clean_body = body.replace(/^NOTE .*\n/gm, "").replace(/^Comment:.*\n/gm, "");
-    let translated_body = await translate_text(clean_body, setting.type);
-    let translated_comments = await translate_text(cc_comments.join("\n"), setting.type);
+    // 1️⃣ **分离字幕 & 注释**
+    let subtitle_comments = {}; // { 时间戳: 注释内容 }
+    let clean_body = body.replace(/^NOTE (.*)\n/gm, (match, comment, offset, fullString) => {
+        let timeMatch = fullString.substring(0, offset).match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
+        if (timeMatch) subtitle_comments[timeMatch[0]] = comment.trim();
+        return ""; // 删除 NOTE 注释
+    }).replace(/^Comment: (.*)\n/gm, (match, comment, offset, fullString) => {
+        let timeMatch = fullString.substring(0, offset).match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
+        if (timeMatch) subtitle_comments[timeMatch[0]] = comment.trim();
+        return ""; // 删除 ASS/SSA 注释
+    });
 
-    let final_body = translated_body;
-    if (translated_comments.trim() !== "") {
-    final_body += "\n\n" + translated_comments;
+    // 2️⃣ **清理格式**
+    clean_body = clean_body.replace(/<\/?[^>]+(>|$)/g, ""); // 删除 HTML 标记
+
+    // 3️⃣ **分别翻译**
+    let translated_subtitles = await translate_text(clean_body, setting.type); // 翻译字幕
+    let translated_comments = {};
+    for (let timestamp in subtitle_comments) {
+        translated_comments[timestamp] = await translate_text(subtitle_comments[timestamp], setting.type); // 翻译注释
+    }
+
+    // 4️⃣ **合并翻译的注释回字幕**
+    let final_body = translated_subtitles.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)/g, (match, subtitle, offset, fullString) => {
+        let timeMatch = subtitle.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d/);
+        if (timeMatch && translated_comments[timeMatch[0]]) {
+            return subtitle + `\n(${translated_comments[timeMatch[0]]})`; // 将翻译后的注释合并回对应的字幕
+        }
+        return subtitle;
+    });
+
+    // 5️⃣ **返回完整的翻译字幕**
+    if (!final_body.trim()) final_body = body; // 确保不会返回空内容
+    body = final_body;
+    $done({ body });
 }
-
-body = final_body;
-$done({ body });
-    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
-    body = body.replace(/(\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+)\n(.+)/g, "$1 $2")
-
-    let dialogue = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n.+/g)
-
-    if (!dialogue) $done({})
-
-    let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g)
 
     let s_sentences = []
     for (var i in dialogue) {
@@ -502,58 +516,4 @@ async function official_subtitles(subtitles_urls_data) {
 
     let timeline = body.match(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+/g)
 
-    for (var i in timeline) {
-        let patt1 = new RegExp(`(${timeline[i]})`)
-        if (setting.line == "s") patt1 = new RegExp(`(${timeline[i]}(\\n.+)+)`)
-
-        let time = timeline[i].match(/^\d+:\d\d:\d\d/)[0]
-
-        let patt2 = new RegExp(`${time}.\\d\\d\\d --> \\d+:\\d\\d:\\d\\d.\\d.+(\\n.+)+`)
-
-        let dialogue = result.join("\n\n").match(patt2)
-
-        if (dialogue) body = body.replace(
-            patt1,
-            `$1\n${dialogue[0]
-                .replace(/\d+:\d\d:\d\d.\d\d\d --> \d+:\d\d:\d\d.\d.+\n/, "")
-                .replace(/\n/, " ")}`
-        )
-    }
-
-    settings[service].s_subtitles_url = url
-    settings[service].subtitles = body
-    settings[service].subtitles_type = setting.type
-    settings[service].subtitles_sl = setting.sl
-    settings[service].subtitles_tl = setting.tl
-    settings[service].subtitles_line = setting.line
-    $persistentStore.write(JSON.stringify(settings))
-
-    $done({ body })
-}
-
-function send_request(options, method) {
-    return new Promise((resolve, reject) => {
-
-        if (method == "get") {
-            $httpClient.get(options, function (error, response, data) {
-                if (error) return reject('Error')
-                resolve(data)
-            })
-        }
-
-        if (method == "post") {
-            $httpClient.post(options, function (error, response, data) {
-                if (error) return reject('Error')
-                resolve(JSON.parse(data))
-            })
-        }
-    })
-}
-
-function groupAgain(data, num) {
-    var result = []
-    for (var i = 0; i < data.length; i += num) {
-        result.push(data.slice(i, i + num))
-    }
-    return result
-}
+    for (var i in timel
